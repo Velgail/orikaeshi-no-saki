@@ -1,0 +1,13 @@
+{
+  "runtimeSha256": {
+    "index.html": "a3ab42f9efc92e44bb63d3a765c0967f6b8411e6ecd605a7d5c0ec15bc1d5414",
+    "style.css": "bfd15601b02bc3b4fe32de0147a4ebbc6fbe40952d8eeddb2f992340fa619692",
+    "app.js": "f1b48163ab5782cbea38c1f123e37ff2892b303eb8a077826824401aa14669ac",
+    "engine.js": "30c687164f51b8b9eb0e2be4e7a9657f10c9f56304e0da47d9fa56e5f04aad0c",
+    "display.js": "5bdb51ca2c82655dd74e90759961763e59fb735cab8a6d2668995bc1bbfa72e8",
+    "equipment.js": "421a5e02b8a1902d25feace4819e6017529212adcc804831d05f85643695fcf1",
+    "realtime.js": "ffa7467ff07b91923986fd5ea3452063504bd419133c142a65f2c37fb172873b",
+    "references.md": "5012a79433714d6da0087be750893d96097929f429bdadebd688408125888062"
+  },
+  "note": "Runtime matches final ASW-reviewed source. README/QA/screenshots are independent post-review documentation."
+}
