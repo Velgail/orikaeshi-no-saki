@@ -6,6 +6,7 @@ class Element{
  set innerHTML(v){this.html=v;this.details=[...v.matchAll(/<details data-(service|crew)="([^"]+)"/g)].map(m=>({dataset:{[m[1]]:m[2]},open:false}));}
  get innerHTML(){return this.html||'';}
  querySelectorAll(selector){return selector==='details'?this.details:[];}
+ closest(){this.label??={};return this.label;}
  showModal(){this.open=true;}close(){this.open=false;}
 }
 test('所定と実績の再描画後も便詳細を保持する',()=>{const s=createState();start(s);const node=new Element();updateTimetable(node,s);node.details[0].open=true;const id=node.details[0].dataset.service;updateTimetable(node,s);assert.equal(node.details.find(d=>d.dataset.service===id).open,true);});
