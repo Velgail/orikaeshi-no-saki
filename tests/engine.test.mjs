@@ -1,95 +1,23 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {createState,start,tick,act,check,serialize,restore,result,LIMIT} from '../engine.js';
-const fresh=()=>{const s=createState();start(s);return s;};
-const command=(s,id,a,arg)=>assert.equal(act(s,id,a,arg),true,`${id} ${a}: ${s.notice}`);
-const wait=(s,id)=>{let n=0;while((s.trains.find(t=>t.id===id).dest!==null||s.trains.find(t=>t.id===id).busy)&&!s.ended){tick(s);assert.ok(n++<121);}};
-function invariants(s){assert.equal(new Set(s.trains.map(t=>t.formation)).size,4);assert.equal(s.crews.length,6);assert.ok(s.crews.every(c=>c.duty<=LIMIT));assert.equal(new Set(s.trains.filter(t=>t.edge).map(t=>Math.min(...t.edge))).size,s.trains.filter(t=>t.edge).length);assert.deepEqual(restore(serialize(s)),s);}
-function strategy(early){let s=fresh();command(s,'T4','relief');tick(s,2);
- if(early){command(s,'T1','dispatch',{dest:2});command(s,'T4','dispatch',{dest:4});
-  for(let id of ['T1','T4']){wait(s,id);command(s,id,'turn');}
-  tick(s,3);command(s,'T1','dispatch',{dest:0});command(s,'T4','dispatch',{dest:7});
-  for(let id of ['T1','T4']){wait(s,id);command(s,id,'rest');commandMaybeTurnAfterRest(s,id);}
- }
- while(s.time<35)tick(s);
- for(let id of ['T1','T4']){let t=s.trains.find(t=>t.id===id);if(t.busy)wait(s,id);if(t.dir!==(t.at===0?1:-1)){command(s,id,'turn');wait(s,id);}}
- command(s,'T1','dispatch',{dest:7});command(s,'T4','dispatch',{dest:0});
- let prepared=new Set(),rested=new Set();for(let k=0;k<130&&!s.ended;k++){
- tick(s);invariants(s);
- for(let id of ['T1','T4']){let t=s.trains.find(t=>t.id===id);if(t.dest===null&&!t.edge&&!t.busy&&!prepared.has(id)&&!rested.has(id)&&s.stats.fullEast+s.stats.fullWest>=1&&t.duty!==0){command(s,id,'rest');prepared.add(id);rested.add(id);}}
- for(let id of prepared){let t=s.trains.find(t=>t.id===id);if(!t.busy&&!t.edge&&t.dest===null){const dest=t.at===0?7:0;if(t.dir!==Math.sign(dest-t.at))command(s,id,'turn');else {command(s,id,'dispatch',{dest});prepared.delete(id);}}}
- }
- return s;}
-function commandMaybeTurnAfterRest(s,id){wait(s,id);command(s,id,'turn');wait(s,id);}
-test('通常移動、乗客輸送、編成と乗務員の同位置',()=>{let s=fresh();command(s,'T1','dispatch',{dest:2});tick(s,3);assert.equal(s.trains[0].at,1);assert.equal(s.crews[0].at,1);assert.equal(s.stats.transported,12);wait(s,'T1');assert.equal(s.trains[0].at,2);invariants(s);});
-test('閉鎖、片方向再開、全線再開、進入中列車の退出',()=>{let s=fresh();tick(s,5);assert.equal(s.phase,'区間閉鎖');s.trains[0].at=3;s.crews[0].at=3;assert.match(check(s,'T1','dispatch',{dest:4}),/閉鎖/);tick(s,15);assert.equal(check(s,'T1','dispatch',{dest:4}),'');s.trains[0].at=4;s.crews[0].at=4;s.trains[0].dir=-1;assert.match(check(s,'T1','dispatch',{dest:3}),/閉鎖/);tick(s,15);assert.equal(check(s,'T1','dispatch',{dest:3}),'');let q=fresh();q.trains[0].at=3;q.crews[0].at=3;tick(q,4);command(q,'T1','dispatch',{dest:4});tick(q,3);assert.equal(q.trains[0].at,4);});
-test('折返し設備と準備時間、連打拒否、リセット独立',()=>{let s=fresh();s.trains[0].at=3;s.crews[0].at=3;assert.match(check(s,'T1','turn'),/出発信号/);s.trains[0].at=2;s.crews[0].at=2;command(s,'T1','turn');assert.equal(act(s,'T1','turn'),false);tick(s,3);assert.equal(s.trains[0].dir,-1);assert.equal(createState().time,0);assert.equal(createState().trains[0].dir,1);});
-test('対向占有と番線予約を拒否',()=>{let s=fresh();command(s,'T1','dispatch',{dest:1});s.trains[1].at=1;s.crews[1].at=1;s.trains[1].dir=-1;s.trains[1].platform=2;assert.match(check(s,'T2','dispatch',{dest:0}),/占有/);let q=fresh();q.trains[1].at=1;q.crews[1].at=1;q.trains[2].at=1;q.trains[2].platform=2;q.crews[2].at=1;assert.match(check(q,'T1','dispatch',{dest:1}),/満杯/);});
-test('乗務境界36分、休憩と交代、予備投入',()=>{let s=fresh();s.crews[0].duty=32;assert.equal(check(s,'T1','dispatch',{dest:1}),'');s.crews[0].duty=33;assert.match(check(s,'T1','dispatch',{dest:1}),/上限/);command(s,'T1','rest');tick(s,7);assert.equal(s.crews[0].duty,33);tick(s);assert.equal(s.crews[0].duty,0);command(s,'T1','relief');assert.equal(s.trains[0].crew,'C4');assert.equal(s.crews[0].at,0);command(s,'T4','relief');assert.equal(s.trains[3].crew,'C6');invariants(s);});
-test('完全保存往復と継続決定性、無効保存の拒否',()=>{let s=fresh();command(s,'T1','transfer');command(s,'T1','dispatch',{dest:2});tick(s);const raw=serialize(s),copy=restore(raw);tick(s,9);tick(copy,9);assert.deepEqual(copy,s);for(const bad of ['x','{}',JSON.stringify({...s,version:99}),JSON.stringify({...s,waiting:[-1]}),JSON.stringify({...s,trains:s.trains.map(t=>({...t,formation:'F1'}))})])assert.throws(()=>restore(bad));});
-test('回送同乗・遠隔交代・拠点への乗員回復（終盤の詰み救済）',()=>{let s=fresh();command(s,'T1','transfer');command(s,'T1','dispatch',{dest:2,mode:'回送'});wait(s,'T1');assert.equal(s.stats.transported,0);assert.equal(s.crews[3].at,2);assert.equal(s.crews[3].ride,null);command(s,'T1','relief');tick(s,2);assert.equal(s.crews[0].train,null);command(s,'T1','transfer');command(s,'T1','turn');tick(s,3);command(s,'T1','dispatch',{dest:0,mode:'回送'});wait(s,'T1');assert.equal(s.crews[0].at,0);tick(s,8);assert.equal(s.crews[0].duty,0);invariants(s);});
-test('2戦略が実輸送と配置復旧で完走しトレードオフを持つ',()=>{const reserve=strategy(false),local=strategy(true);assert.equal(result(reserve).success,true,serialize(reserve));assert.equal(result(local).success,true,serialize(local));assert.ok(local.stats.transported>reserve.stats.transported);assert.ok(local.recoveryAt>reserve.recoveryAt);console.log('戦略実測',JSON.stringify({reserve:result(reserve),reserveTime:reserve.recoveryAt,local:result(local),localTime:local.recoveryAt}));});
-test('操作なしでは勝利せず、時間切れと自動運用抑止',()=>{let s=fresh();tick(s,120);assert.equal(s.ended,true);assert.equal(result(s).success,false);let q=fresh();command(q,'T1','auto');command(q,'T1','dispatch',{dest:2});tick(q,8);command(q,'T1','hold');assert.equal(q.trains[0].auto,false);assert.equal(q.trains[0].dest,null);});
-test('決定論的な混合操作2400分で資源・保存・占有の不変条件',()=>{for(let seed=1;seed<=20;seed++){let rng=seed;const rnd=n=>{rng=(Math.imul(rng,1664525)+1013904223)>>>0;return rng%n;};let s=fresh();for(let minute=0;minute<120&&!s.ended;minute++){for(let attempt=0;attempt<4;attempt++){const id=`T${rnd(4)+1}`,a=['dispatch','hold','turn','rest','relief','transfer','alight','auto'][rnd(8)];act(s,id,a,{dest:rnd(8),mode:rnd(2)?'旅客':'回送'});}tick(s);invariants(s);}}});
-test('予備への同乗誤操作を拒否し、同乗は駅で降車して回復できる',()=>{let s=fresh();assert.match(check(s,'T4','transfer'),/担当乗務員/);command(s,'T1','transfer');command(s,'T1','alight');assert.equal(s.crews[3].ride,null);assert.equal(s.crews[3].at,0);assert.equal(s.crews[3].rest,8);invariants(s);});
-test('番線予約は到着まで保持され、同駅4編成を別番線で描く',async()=>{const {platformUse}=await import('../engine.js');const {mapSVG}=await import('../display.js');let s=fresh();command(s,'T1','dispatch',{dest:2});assert.equal(s.trains[0].reserved,1);tick(s,4);assert.equal(s.trains[0].reserved,4);assert.deepEqual(platformUse(s,2).map(x=>x.platform),[4,1]);tick(s,3);assert.equal(s.trains[0].platform,4);invariants(s);let q=createState();q.trains.forEach((t,i)=>{t.at=2;t.platform=i+1;});const svg=mapSVG(q);for(let i=0;i<4;i++)assert.ok(svg.includes(`y="${90+i*48-10}"`));assert.ok(svg.includes('予備：駅番線'));});
-test('列車ダイヤの競合遅れ・抑止運休・自動運用・保存',async()=>{const {serviceDelay}=await import('../engine.js');const {timetableHTML}=await import('../display.js');let s=fresh();command(s,'T1','dispatch',{dest:2});tick(s,2);s.trains[1].dir=-1;command(s,'T2','dispatch',{dest:1});tick(s,7);const r=s.timetable[0];assert.equal(r.stops[1].planned,7);assert.equal(r.stops[1].actual,9);assert.equal(r.status,'完了');assert.equal(serviceDelay(s,r),2);assert.ok(timetableHTML(s).includes('2分遅れ'));invariants(s);command(s,'T2','dispatch',{dest:0});tick(s,3);assert.equal(s.timetable.at(-1).status,'完了');let q=fresh();command(q,'T1','auto');command(q,'T1','dispatch',{dest:2});tick(q,7);assert.equal(q.timetable.length,2);command(q,'T1','hold');assert.equal(q.timetable[1].status,'運休');invariants(q);const bad=JSON.parse(serialize(s));bad.timetable[0].stops[0].planned=999;assert.throws(()=>restore(JSON.stringify(bad)));});
-
-test('再現回帰：自動ONで桜町行きを事前拒否し、OFFの片道到着は向きを保持',()=>{
- const s=fresh();command(s,'T1','auto');assert.match(check(s,'T1','dispatch',{dest:1}),/出発信号/);
- assert.equal(act(s,'T1','dispatch',{dest:1,mode:'旅客'}),false);assert.equal(s.trains[0].dest,null);
- command(s,'T1','auto');command(s,'T1','dispatch',{dest:1});tick(s,6);
- assert.equal(s.trains[0].dir,1);assert.equal(s.trains[0].edge,null);assert.equal(s.trains[0].dest,null);
- invariants(s);assert.match(check(s,'T1','auto'),/出発信号/);
- const bad=restore(serialize(s));bad.trains[0].dir=-1;bad.trains[0].dest=0;bad.trains[0].busy=3;
- assert.throws(()=>restore(serialize(bad)));bad.trains[0].dest=null;assert.throws(()=>restore(serialize(bad)));
-});
-test('全折り返し不可駅で手動・自動・運用変更・ロード後の反転を拒否し前進で回復',()=>{
- for(const dest of [1,3,5]){
-  const s=fresh();tick(s,35);command(s,'T1','auto');assert.equal(act(s,'T1','dispatch',{dest,mode:'回送'}),false);
-  command(s,'T1','auto');command(s,'T1','dispatch',{dest,mode:'回送'});wait(s,'T1');
-  const q=restore(serialize(s));for(const state of [s,q]){
-   assert.equal(act(state,'T1','turn'),false);assert.equal(act(state,'T1','auto'),false);
-   assert.match(check(state,'T1','dispatch',{dest:0}),/方向/);
-   command(state,'T1','hold');command(state,'T1','dispatch',{dest:dest+1,mode:'旅客'});wait(state,'T1');invariants(state);
-  }assert.deepEqual(q,s);
- }
-});
-test('全合法折り返し駅で自動反転3分と保存継続、ON/OFFの途中変更',()=>{
- for(const dest of [0,2,4,6,7]){
-  const s=fresh();tick(s,35);const id=dest===0?'T3':'T1';command(s,id,'auto');command(s,id,'dispatch',{dest});
-  const t=s.trains.find(t=>t.id===id),direction=t.dir;
-  while(t.edge||t.at!==dest){tick(s);invariants(s);}
-  assert.equal(t.dir,-direction);assert.equal(t.busy,3);assert.notEqual(t.dest,null);
-  const q=restore(serialize(s));tick(s,3);tick(q,3);assert.deepEqual(q,s);invariants(s);
- }
- const s=fresh();command(s,'T1','dispatch',{dest:2});tick(s,3);
- command(s,'T1','auto');const q=restore(serialize(s));tick(s,4);tick(q,4);assert.deepEqual(q,s);assert.equal(s.trains[0].dir,-1);
- command(s,'T1','auto');command(s,'T1','hold');tick(s,3);command(s,'T1','dispatch',{dest:1});tick(s,3);
- assert.equal(act(s,'T1','auto'),false);tick(s);assert.equal(s.trains[0].dir,-1);invariants(s);
-});
-test('保存の逆向き区間・非合法自動運用・不正起点の次運用を拒否',()=>{
- const s=fresh();command(s,'T1','dispatch',{dest:2});tick(s,3);
- const bad=restore(serialize(s));bad.trains[0].auto=true;bad.trains[0].dest=1;assert.throws(()=>restore(serialize(bad)));
- const q=fresh();command(q,'T1','dispatch',{dest:1});tick(q,4);command(q,'T1','dispatch',{dest:2});
- const wrong=restore(serialize(q));wrong.trains[0].edge=[1,0];wrong.trains[0].reserved=2;wrong.formations[0].edge=[1,0];assert.throws(()=>restore(serialize(wrong)));
- const origin=restore(serialize(q));origin.timetable.at(-1).dest=0;origin.timetable.at(-1).stops=[{at:0,planned:7,actual:null}];assert.throws(()=>restore(serialize(origin)));
-});
-test('西向きの全不可駅と、不可駅起点の運用変更後も自動ONを拒否',()=>{
- for(const dest of [1,3,5]){
-  const s=fresh();tick(s,35);command(s,'T3','dispatch',{dest});wait(s,'T3');
-  assert.equal(s.trains[2].dir,-1);assert.equal(act(s,'T3','turn'),false);invariants(s);
-  command(s,'T3','dispatch',{dest:dest-1,mode:'回送'});tick(s,3);
-  // 片道運用終了後は合法駅を起点とした新しい自動往復を設定できる。
-  if(s.trains[2].busy)tick(s);assert.equal(act(s,'T3','auto'),true);invariants(s);
-  const q=restore(serialize(s));tick(s,3);tick(q,3);assert.deepEqual(q,s);
- }
- const s=fresh();command(s,'T1','dispatch',{dest:1});tick(s,4);
- tick(s,31);command(s,'T1','dispatch',{dest:4});tick(s,3);assert.equal(act(s,'T1','auto'),false);invariants(s);
-});
-test('保存の運用起点・行先・種別・サービス矛盾を拒否',()=>{
- const s=fresh();command(s,'T1','auto');command(s,'T1','dispatch',{dest:2});
- for(const patch of [{origin:4},{dest:4},{mode:'回送'},{service:'S999'}]){
-  const bad=restore(serialize(s));Object.assign(bad.trains[0],patch);assert.throws(()=>restore(serialize(bad)));
- }
- const q=restore(serialize(s));tick(s,10);tick(q,10);assert.deepEqual(q,s);invariants(s);
-});
+import {createState,start,tick,act,check,serialize,restore,validate,result,schedule,playerInfo,connections,END} from '../engine.js';
+import {equipment,route} from '../equipment.js';import {strategy} from './strategies.mjs';
+const fresh=(mode='incident')=>{const s=createState({mode});start(s);return s;};
+test('無操作所定運行：4周期の全停車・発着・人車行路・合法勤務と資源保存',()=>{const s=fresh('normal');const backlog=[];for(let i=0;i<END;i++){tick(s);validate(s);if(s.time%72===0)backlog.push(result(s).unfinished);}for(const r of s.timetable.filter(r=>r.departure<END)){const a=s.actual.find(a=>a.id===r.id);assert.equal(a.status,'完了',r.id);assert.equal(a.actualDeparture,r.departure,r.id);assert.equal(a.formation,r.formation);assert.equal(a.crew,r.crew);for(const stop of r.stops){const real=a.stops.find(x=>x.at===stop.at);assert.equal(real.arrival,stop.arrival,r.id);assert.equal(real.departure,stop.departure,r.id);}}assert.deepEqual(s.violations,[]);assert.equal(s.stats.overtime,0);assert.ok(s.crews.slice(0,8).every(c=>c.ended&&c.todayWork===480));assert.ok(s.crews.slice(8).every(c=>c.dutyStart===200&&!c.ended));assert.ok(Math.max(...backlog)-Math.min(...backlog)<20,JSON.stringify(backlog));console.log('正常需要の周期末未着',backlog);});
+test('障害・部分再開・全線再開、閉鎖中に所定便は抑止し無操作では成功しない',()=>{const s=fresh();tick(s,5);assert.equal(s.phase,'区間閉鎖');assert.equal(s.plans[0].hold,true);tick(s,15);assert.equal(s.phase,'片方向再開');tick(s,45);assert.equal(s.phase,'全線再開');tick(s,END-65);assert.equal(result(s).success,false);});
+test('実指令だけの2戦略が完走、全停止待ち案との固定288分実測比較',()=>{const local=strategy('local'),rescue=strategy('wait-rescue'),waiting=strategy('wait-only');assert.equal(result(local).success,true);assert.equal(result(rescue).success,true);assert.equal(result(waiting).success,false);assert.ok(local.recoveryAt<rescue.recoveryAt);assert.ok(local.stats.wait<waiting.stats.wait);assert.ok(local.stats.transported>waiting.stats.transported||local.recoveryAt!==null);assert.ok(local.stats.wait>rescue.stats.wait);console.log('今回版戦略実測',JSON.stringify({local:{...result(local),recovery:local.recoveryAt},rescue:{...result(rescue),recovery:rescue.recoveryAt},waiting:{...result(waiting),recovery:waiting.recoveryAt}}));});
+test('元所定不変、変更計画と部分運休実績は独立、取消後も予定をずらさない',()=>{const s=fresh();const before=JSON.stringify(schedule());tick(s,5);act(s,'T1','shorten',{service:'A000',dest:2});assert.equal(s.timetable[0].dest,7);act(s,'T1','restorePlan',{service:'A000'});assert.equal(s.plans[0].dest,7);act(s,'T1','cancel',{service:'A000'});tick(s,4);assert.equal(s.actual[0].status,'運休');assert.equal(JSON.stringify(s.timetable),before);validate(s);});
+test('短縮客の目的地・保存則と乗換、未着を輸送完了にしない',()=>{let observed=false;strategy('local',s=>{if(s.time===7){const pending=s.queues.filter(p=>p.dest>2);assert.ok(pending.some(p=>p.at===2));assert.equal(s.stats.transported,s.nextPassenger-1-s.queues.length-s.trains.reduce((n,t)=>n+t.passengers.length,0));observed=true;}});assert.ok(observed);});
+test('次便配置不足は実際の場所から発見、遠隔代走・交代・資格欠如を拒否',()=>{const s=fresh();tick(s,5);assert.match(check(s,'T1','assign',{service:'A036',crew:'C2'}),/始発駅/);assert.match(check(s,'T3','assign',{service:'A036',crew:'C1'}),/所在/);s.crews[1].qualifications=[];assert.match(check(s,'T3','assign',{service:'A036',crew:'C2'}),/資格/);const before=serialize(s);act(s,'T3','assign',{service:'A036',crew:'C2'});const after=JSON.parse(before);after.notice=s.notice;assert.deepEqual(s,after);});
+test('保存往復・継続・全戦略各分の不変条件・旧版と破損の拒否',()=>{const s=fresh('normal');tick(s,40);const copy=restore(serialize(s));tick(s,50);tick(copy,50);assert.deepEqual(copy,s);for(const raw of ['{}','x',JSON.stringify({...s,version:4}),JSON.stringify({...s,timetable:s.timetable.slice(1)})])assert.throws(()=>restore(raw));for(const patch of [{reserved:3},{arrivalRoute:'fake'},{dir:-1}]){const q=fresh('normal');Object.assign(q.trains[0],patch);assert.throws(()=>restore(serialize(q)));}});
+test('番線・進路・閉塞予約、方向別と双方向番線の折返根拠',()=>{for(const e of equipment)for(const p of e.platforms)for(const d of [-1,1]){const s=fresh('normal');const t=s.trains[3];Object.assign(t,{at:e.at,platform:p.number,dir:-d});assert.equal(check(s,t.id,'turn')==='',!!route(e.at,p.number,'departure',d));}const s=fresh('normal');assert.equal(s.trains[0].edge[1],1);assert.equal(s.trains[0].reserved,1);tick(s,4);assert.ok(route(2,s.trains[0].reserved,'departure',-1));const q=restore(serialize(s));q.trains[0].reserved=3;assert.throws(()=>validate(q));});
+test('折返不可終着の設定・手動反転・連打は拒否、終端反転3分',()=>{for(const dest of [1,3,5]){const s=fresh();assert.match(check(s,'T1','shorten',{service:'A000',dest}),/逆向き/);}const s=fresh('normal');tick(s,27);assert.equal(s.trains[0].dir,-1);assert.equal(s.trains[0].busy,3);assert.equal(act(s,'T1','turn'),false);tick(s,3);assert.equal(s.trains[0].busy,0);assert.equal(act(s,'T1','turn'),false);assert.equal(createState().time,0);});
+test('予測は未発生事故を知らず、全段階projectionには未発生再開時刻を入れない',()=>{const s=fresh();assert.ok(connections(s).every(x=>x.possible));for(const [n,words] of [[0,/川原|故障|08:05|08:20|09:05/],[5,/08:20|09:05/],[20,/09:05/],[65,/未来予定/]]){tick(s,n-s.time);assert.doesNotMatch(JSON.stringify(playerInfo(s)),words);}assert.equal(s.important.length,3);});
+test('抑止は通常操作で解除されず重大通知を上書きしない',()=>{const s=fresh();tick(s,5);const important=JSON.stringify(s.important);act(s,'T2','hold',{service:'B032'});assert.equal(JSON.stringify(s.important),important);tick(s,35);assert.equal(s.actual.find(a=>a.id==='B032').actualDeparture,null);assert.match(s.actual.find(a=>a.id==='B032').reason,/抑止/);});
+test('便乗は実列車移動・遅延を共有、休憩だけで他人へ引継がない',()=>{const s=fresh('normal');act(s,'T3','transfer',{crew:'C4'});assert.equal(act(s,'T3','dispatch',{dest:0,mode:'回送'}),true);tick(s,8);const c=s.crews.find(c=>c.id==='C4'),t=s.trains[2];assert.equal(c.at,t.edge?null:t.at);assert.equal(c.ride,'T3');assert.ok(c.todayWork>c.startLedger.work);tick(s,25);assert.equal(c.at,0);assert.equal(c.ride,null);const before=t.crew;tick(s,30);assert.equal(t.crew,before);});
+test('自由休憩中断は取得分だけ、終業済み人員を再投入しない',()=>{const s=fresh('normal');assert.equal(act(s,'T2','break',{crew:'C8'}),true);tick(s,10);assert.equal(s.crews[7].breakMinutesActual,70);act(s,'T2','endBreak',{crew:'C8'});assert.equal(s.crews[7].rest,0);assert.equal(act(s,'T2','retire',{crew:'C8'}),true);tick(s,5);assert.equal(s.crews[7].todayWork,s.crews[7].startLedger.work);assert.equal(act(s,'T2','transfer',{crew:'C8'}),false);});
+test('復旧は消した便や遅らせた予定・固定回数で達成できない',()=>{const s=fresh();tick(s,5);for(const r of s.timetable.filter(r=>r.departure>=72&&r.departure<END))act(s,s.plans.find(p=>p.id===r.id).train,'cancel',{service:r.id});tick(s,END-5);assert.equal(result(s).success,false);});
+test('運行中便の編成再割当・代走復元は拒否し同じ便の二重担当を防ぐ',()=>{const s=fresh('normal');const before=JSON.stringify(s.plans);assert.equal(act(s,'T2','assign',{service:'A000',crew:'C3'}),false);assert.equal(JSON.stringify(s.plans),before);tick(s);validate(s);const q=fresh();tick(q,5);act(q,'T1','shorten',{service:'A000',dest:2});act(q,'T1','resume',{service:'A000'});tick(q,5);act(q,'T1','dispatch',{dest:0});act(q,'T3','assign',{service:'A036',crew:'C2'});tick(q,26);assert.equal(act(q,'T3','restorePlan',{service:'A036'}),false);validate(q);});
+test('選択編成と対象便が異なる短縮・運休も実担当を更新、保存可能',()=>{const s=fresh();tick(s,5);assert.equal(act(s,'T3','shorten',{service:'A000',dest:2}),true);assert.equal(s.trains[0].dest,2);act(s,'T3','resume',{service:'A000'});tick(s,2);validate(s);const q=fresh();tick(q,5);act(q,'T3','cancel',{service:'A000'});tick(q,2);assert.equal(q.trains[0].service,null);validate(q);});
+test('公開APIで双方向番線満杯→方向別C2着、同駅短縮も実番線の逆進路を要求',()=>{const s=fresh('normal');const cmd=(id,a,arg)=>assert.equal(act(s,id,a,arg),true,s.notice);cmd('T1','cancel',{service:'A000'});cmd('T3','dispatch',{dest:2});cmd('T4','dispatch',{dest:2});tick(s,6);cmd('T1','dispatch',{dest:7});const id=s.timetable.at(-1).id;cmd('T1','hold',{service:id});tick(s,18);cmd('T1','resume',{service:id});tick(s,4);assert.equal(s.trains[0].at,2);assert.equal(s.trains[0].platform,2);assert.equal(act(s,'T1','shorten',{service:id,dest:2}),false);assert.match(s.notice,/2番線.*逆向き/);validate(s);});
+test('終着後の後処理2分は実働、解放前は再配置不可、その後だけ自由休憩を計上',()=>{const s=fresh('normal');tick(s,27);const c=s.crews[0],before=c.breakMinutesActual,work=c.todayWork;assert.equal(c.rest,0);assert.equal(c.pendingBreak,30);assert.equal(c.releaseAt,29);assert.equal(act(s,'T3','transfer',{crew:'C1'}),false);tick(s,2);assert.equal(c.todayWork,work+2);assert.equal(c.breakMinutesActual,before);assert.equal(c.dutySegments.at(-1).kind,'preparation');const copy=restore(serialize(s));tick(s);tick(copy);assert.deepEqual(copy,s);assert.equal(c.breakMinutesActual,before+1);assert.equal(c.rest,29);});
+test('保存の勤務台帳・計画型・内部予測flag・通知破損を安全拒否',()=>{const s=fresh('normal');tick(s,28);for(const change of [q=>q.crews[0].todayWork++,q=>q.crews[0].monthOvertime++,q=>q.plans[0].hold='yes',q=>q.forecast=true,q=>q.important.push({time:999,msg:'不正',acknowledged:false}),q=>q.company.daily=999]){const q=JSON.parse(serialize(s));change(q);assert.throws(()=>restore(JSON.stringify(q)));}assert.deepEqual(restore(serialize(s)),s);});

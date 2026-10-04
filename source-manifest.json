@@ -1,13 +1,27 @@
 {
-  "runtimeSha256": {
-    "index.html": "a3ab42f9efc92e44bb63d3a765c0967f6b8411e6ecd605a7d5c0ec15bc1d5414",
-    "style.css": "bfd15601b02bc3b4fe32de0147a4ebbc6fbe40952d8eeddb2f992340fa619692",
-    "app.js": "f1b48163ab5782cbea38c1f123e37ff2892b303eb8a077826824401aa14669ac",
-    "engine.js": "30c687164f51b8b9eb0e2be4e7a9657f10c9f56304e0da47d9fa56e5f04aad0c",
-    "display.js": "5bdb51ca2c82655dd74e90759961763e59fb735cab8a6d2668995bc1bbfa72e8",
+  "version": 7,
+  "sha256": {
+    "index.html": "5a081faefec8581dde85bb0ba5cd4581f69ed6ceaf70880846942e5e1c799c0a",
+    "style.css": "43fef52486c3614fbe0ea88a67999a295574daff53e8271381a377b5b50ca59c",
+    "app.js": "c1e3ad19f5e97ab4adc41fee22e778ad04445ffa26269f72e05a09debc96bd0d",
+    "engine.js": "228fbcdd9f103cb508f766f403ac3f506a45dd275b5d493d1128689317b68761",
+    "display.js": "3369e5e50f343610ee2120076fd239487bbb8d9586d3c1c90b2907d9bb4b5972",
     "equipment.js": "421a5e02b8a1902d25feace4819e6017529212adcc804831d05f85643695fcf1",
     "realtime.js": "ffa7467ff07b91923986fd5ea3452063504bd419133c142a65f2c37fb172873b",
-    "references.md": "5012a79433714d6da0087be750893d96097929f429bdadebd688408125888062"
-  },
-  "note": "Runtime matches final ASW-reviewed source. README/QA/screenshots are independent post-review documentation."
+    "labor.js": "f26c7fb8bad3a55800aecc26e1ae2c195bccb8afab7567df397c360c1a6c4c41",
+    "references.md": "482263f85e215ed8e905cf3b57e8a04fbfc8ebcbcbcf6c31eef636486c682b5a",
+    "server.mjs": "5784af4dd44161895d8d3e0f6fec9832aaa9463eb4480553f29b0704894d73c5",
+    "package.json": "551883ef07c8eb99b5ac8e827e082af16e74efe52d977b7a9b50fbcaa024c603",
+    "strategy.md": "b6e71ad267ce3ca934a208fbe7a977cf26c56497a2f9c100eaf10878a71d0535",
+    "tests/duty.test.mjs": "7ddf8eac007a26f96e62ea164dd5159c05c6518dace6882d44fb186d5ae20422",
+    "tests/engine.test.mjs": "337c3c835724cc10d33041c961f2b218b4b45b7c02f57860853e996372552748",
+    "tests/equipment.test.mjs": "2497f2a3d38d6c2c1b5da9c25dac5d346e467ba696395dce6e99598e50784970",
+    "tests/labor.test.mjs": "c9340619b2166016606d50c6577a02257e354c3dc421560e6cef155160b6b14b",
+    "tests/overtime.test.mjs": "f920f62ffe1b9c4e53434c50be6d904f675513c9bf728ebb277f81dbc714eb2b",
+    "tests/realtime.test.mjs": "b2ac8d0426812e56987c69c359ec8ca05a1664d256742d4b658c4e940842da4b",
+    "tests/strategies.mjs": "fe9e1451027361c776930f280da42418ad6a12c15a4f572bb0d66398bcd4996b",
+    "tests/ui.test.mjs": "f75328963a4fc6f8bfe190a2476879542a183178be66ba9a33e650d3ddbc67ce",
+    "verification/server_check.mjs": "8d3978a118f18f7e19022ad9f52c50a46fce86880ba8ea7d8a6ce728d1453ca6",
+    "verification/reviewer-probe.mjs": "183915a34833cf12e3d1d5b47594dc2cf7834e17ba878d0de972ae0e8326c2d0"
+  }
 }
