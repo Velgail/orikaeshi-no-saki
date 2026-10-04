@@ -28,3 +28,4 @@ header{position:sticky;top:0;z-index:20;padding:7px 18px;height:66px;gap:18px}h1
 .decision-footer button{width:100%;padding:12px;background:#244f4d;border-color:#80ddc3}
 .decision #actions small{padding-bottom:0}
 @media(max-width:900px){.decision{max-height:70vh}}
+#goals{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}#goals button{flex:1 1 160px;text-align:left;padding:8px}#blocked p{font-size:12px;margin:5px}#context{font-weight:bold;margin:6px 0}#manual{margin:6px 0}#manual label{display:block}
