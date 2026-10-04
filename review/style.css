@@ -19,4 +19,12 @@ header{position:sticky;top:0;z-index:20;padding:7px 18px;height:66px;gap:18px}h1
 
 .service-table details[open] .stop-table{width:100%;margin-left:0;box-shadow:none;table-layout:fixed}.stop-table th:first-child{width:15%}.stop-detail>td{padding:0 8px 8px}.stop-detail summary{font-size:13px}.stop-table td,.stop-table th{padding:8px 4px}
 
-.decision #actions button{position:fixed;bottom:24px;right:24px;width:304px;z-index:30;background:#244f4d;border-color:#80ddc3}.decision{padding-bottom:72px}.decision #actions small{padding-bottom:30px}@media(max-width:900px){.decision #actions button{position:static;width:100%}.decision{padding-bottom:12px}}
+/* 操作本文と実行専用フッターは別のレイアウト領域。 */
+.decision{display:flex;flex-direction:column;overflow:hidden;padding-bottom:12px}
+.decision>h2{position:static;flex:none}
+.decision-body{min-height:0;overflow-y:auto;flex:1;padding-bottom:16px}
+.decision .inputs{position:static}
+.decision-footer{flex:none;padding-top:12px;border-top:1px solid #496276;background:#132232}
+.decision-footer button{width:100%;padding:12px;background:#244f4d;border-color:#80ddc3}
+.decision #actions small{padding-bottom:0}
+@media(max-width:900px){.decision{max-height:70vh}}
