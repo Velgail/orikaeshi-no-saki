@@ -22,9 +22,14 @@ export function evaluate(c,{extra=0,driving=0,complete=false,now=0}={}){
  if(c.continuousDrivingMinutes+driving>180)safety.push('架空社内規程：連続乗務180分を超過');
  if(c.dutyStart-c.previousDutyEnd<660)safety.push('架空社内規程：勤務間隔11時間未満');
  if(!c.fitForDuty)safety.push('乗務不可判定');if(!c.qualifications.includes('青葉線運転士')||now>c.qualificationUntil)safety.push('線区・職務資格なし／期限切れ');
+ const endOvertime=Math.max(0,now+extra-c.plannedDutyEnd)-Math.max(0,now-c.plannedDutyEnd);
+ const additionalOvertime=Math.max(increment,endOvertime);
  const remaining=Math.min(120-dayOT,2700-month,21600-year);
- return {errors,safety,allowed:!errors.length&&!safety.length,dayOT,month,year,increment,remaining,breakNeeded:Math.max(0,requiredBreak(work)-intermediateBreak(c)),overtime:Math.max(0,now-c.plannedDutyEnd),additionalOvertime:Math.max(0,now+extra-c.plannedDutyEnd)-Math.max(0,now-c.plannedDutyEnd),classification:errors.length?'法令・協定不適合':safety.length?'安全条件不適合':dayOT||now>c.plannedDutyEnd?'許容超勤':'通常勤務'};
+ return {errors,safety,allowed:!errors.length&&!safety.length,dayOT,month,year,increment,remaining,breakNeeded:Math.max(0,requiredBreak(work)-intermediateBreak(c)),overtime:Math.max(0,now-c.plannedDutyEnd),additionalOvertime,additionalStatutoryOvertime:increment,additionalEndOvertime:endOvertime,classification:errors.length?'法令・協定不適合':safety.length?'安全条件不適合':weekly.overtime||now>c.plannedDutyEnd?'許容超勤':'通常勤務'};
 }
-export function workMinute(c,now,kind){const e=evaluate(c,{extra:1,driving:kind==='driving'?1:0,now});c.todayWork++;c.monthOvertime=e.month;c.yearOvertime=e.year;if(kind==='driving')c.continuousDrivingMinutes++;c.duty=c.continuousDrivingMinutes;c.overtimeMinutes+=now>c.plannedDutyEnd?1:0;segment(c,now,kind,true);}
+export function workMinute(c,now,kind){const e=evaluate(c,{extra:1,driving:kind==='driving'?1:0,now});c.todayWork++;c.monthOvertime=e.month;c.yearOvertime=e.year;if(kind==='driving')c.continuousDrivingMinutes++;c.duty=c.continuousDrivingMinutes;c.overtimeMinutes+=Math.max(e.increment,Number(now>c.plannedDutyEnd));segment(c,now,kind,true);}
 export function breakMinute(c,now){c.breakMinutesActual++;c.breakRun++;if(c.breakRun>=30)c.continuousDrivingMinutes=0;c.duty=c.continuousDrivingMinutes;segment(c,now,'break',false);}
 function segment(c,now,kind,work){const last=c.dutySegments.at(-1);if(last?.kind===kind&&last.end===now-1)last.end=now;else c.dutySegments.push({start:now-1,end:now,kind,work});}
+
+// 実働区間の各分で法定時間外増分と所定終業超過の和集合を再集計。先行履歴は採点しない。
+export function overtimeRecord(c){let work=c.startLedger.work,charged=0,end=0,statutory=0;for(const x of c.dutySegments)if(x.work)for(let now=x.start+1;now<=x.end;now++){const before=overtime([...c.weekDays,{work,holiday:c.holiday}]).overtime;work++;const delta=overtime([...c.weekDays,{work,holiday:c.holiday}]).overtime-before;const late=Number(now>c.plannedDutyEnd);statutory+=delta;end+=late;charged+=Math.max(delta,late);}return {charged,end,statutory};}
