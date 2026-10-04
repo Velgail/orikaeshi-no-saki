@@ -1,6 +1,7 @@
+import {guidance,crewCandidates} from '../guidance.js';
 import {createState,start,tick,act,validate} from '../engine.js';
-export function strategy(policy='local',onMinute=()=>{}){
- const s=createState();start(s);const cmd=(id,a,arg={})=>{if(!act(s,id,a,arg))throw Error(`${s.time} ${id} ${a}: ${s.notice}`);};
+export function strategy(policy='local',onMinute=()=>{},guided=false){
+ const s=createState();start(s);const cmd=(id,a,arg={})=>{if(guided){const items=guidance(s,id,arg.service).choices;const item=items.find(x=>x.action===a&&Object.entries(arg).filter(([k])=>k!=='crew').every(([k,v])=>x.arg[k]===v));if(!item)throw Error(`通常候補なし ${s.time} ${id} ${a}`);if(arg.crew&&!crewCandidates(s,id,a,{...item.arg,crew:undefined}).some(c=>c.id===arg.crew))throw Error('担当候補なし');}if(!act(s,id,a,arg))throw Error(`${s.time} ${id} ${a}: ${s.notice}`);};
  while(!s.ended){
  if(s.time===5&&policy==='local'){cmd('T1','resume',{service:'AM012'});cmd('T3','resume',{service:'DM008'});cmd('T1','shorten',{service:'A024',dest:4});cmd('T3','shorten',{service:'D028',dest:2});}
  if(policy==='local'){
